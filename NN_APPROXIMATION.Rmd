@@ -1,0 +1,111 @@
+---
+title: "NEURAL NETWORKS FOR APPROXIMATION"
+output: word_document
+---
+
+# Download the data and libraries
+```{r}
+library(dplyr)
+library(nnet)
+library(ggplot2)
+library(knitr)
+library (psych)
+#Set Working Directory
+setwd('C:\\Users\\VerkhovodTS\\Desktop\\R')
+f <- read.csv2('countries.csv', header = TRUE, encoding = 'UNICOD')
+describe(f)
+```
+Аналіз основних показників описової статистики за кожною змінною показав, що є пропущені значення в змінних – Unemployment, 
+Average.life.expectancy..years. Змінні GDP, Population, Area..km.2 мають викиди. 
+
+# Missing data, fill n/a with average 
+```{r}
+f_fill1 <- f
+f_fill1$Unemployment <-ifelse(is.na(f$Unemployment), round(mean(f$Unemployment, na.rm = TRUE)),f$Unemployment)
+f_fill1$Average.life.expectancy..years <-ifelse(is.na(f$Average.life.expectancy..years), round(mean(f$Average.life.expectancy..years, na.rm = TRUE)),f$Average.life.expectancy..years)
+head(f_fill1)
+
+f<- f_fill1
+describe(f)
+```
+Пропуски в змінних Unemployment, Average.life.expectancy..years заповнили середніми значеннями показника.
+
+# Ejections (outside the three sigma).
+```{r}
+f_ej1 <- f
+f_ej1$GDP<- ifelse(f$GDP < mean(f$GDP)+sd(f$GDP)*3, f$GDP, mean(f$GDP)+sd(f$GDP)*3)
+f_ej1$Population<- ifelse(f$Population < mean(f$Population)+sd(f$Population)*3, f$Population, mean(f$Population)+sd(f$Population)*3)
+f_ej1$Area..km.2<- ifelse(f$Area..km.2 < mean(f$Area..km.2)+sd(f$Area..km.2)*3, f$Area..km.2, mean(f$Area..km.2)+sd(f$Area..km.2)*3)
+describe(f_ej1)
+f <- f_ej1
+```
+Для корекції викидів обраний варіант заповнення граничними значеннями.
+
+#Factors as numeric
+```{r}
+f$Constitutional.form <- as.numeric(f$Constitutional.form) 
+```
+Якісні змінні перетворено на кількісні. 
+
+# Features Scaling
+```{r}
+f_sc <- f
+f_sc$GDP <- scale(f$GDP)
+f_sc$Population <- scale(f$Population)
+f_sc$Unemployment <- scale(f$Unemployment)
+f_sc$Area..km.2 <- scale(f$Area..km.2)
+f_sc$Average.life.expectancy..years <- scale(f$Average.life.expectancy..years)
+f_sc$Constitutional.form <- scale(f$Constitutional.form)
+head (f_sc)
+```
+Виконано шкалювання кількісних змінних.
+
+
+# Splitting the scaled dataset into the TRAIN set and TEST set
+```{r}
+set.seed(123)
+library(caTools)
+split = sample.split(f_sc$GDP, SplitRatio = 0.8)
+f_train = subset(f_sc, split == TRUE)
+f_test = subset(f_sc, split == FALSE)
+```
+Датасет розподілений на навчальну та тестову вибірки.
+
+# Fitting the NN
+```{r results='hide'}
+set.seed(123)
+library(nnet)
+library(scales)
+library(reshape)
+ff_ap <- nnet(data = f_train, GDP ~ Population + Unemployment + Area..km.2 + Average.life.expectancy..years + Constitutional.form, linout = TRUE ,size = 6, maxit = 10000)
+library(graphics)
+setwd('C:\\Users\\VerkhovodTS\\Desktop\\R')
+source(file = 'plot.nnet.R')
+plot.nnet(ff_ap)
+```
+На основі усіх змінних побудовано двошарову нейронну мережу для прогнозування ВВП країни.
+
+# Prediction
+```{r}
+p_ff_ap <- predict(ff_ap, f_test)
+
+train_mse_ff_ap <- sum((f_train$GDP-predict(ff_ap, f_train))^2)/length(f_train$GDP)
+test_mse_ff_ap <- sum((f_test$GDP-p_ff_ap)^2)/length(p_ff_ap)
+
+train_mse_ff_ap
+test_mse_ff_ap
+```
+значення середньоквадратичної помилки на навчальній вибірці – 0.006325315, на тестовій вибірці – 0.9934499.
+
+# Visualising
+```{r}
+library(ggplot2)
+ggplot() +
+  geom_point(aes(f_train$Population, f_train$GDP),colour = 'red') +
+  geom_point(aes(f_test$Population, f_test$GDP),colour = 'dark green') +
+  geom_line(aes(f_test$Population, p_ff_ap),colour = 'black') +
+  ggtitle('GDP vs Population') +
+  xlab('Population') +
+  ylab('GDP')
+```
+На графіку червоним позначені точки навчальної вибірки, зеленим – точки тестової вибірки, чорним – модельні значення.
