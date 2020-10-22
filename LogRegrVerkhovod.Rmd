@@ -1,0 +1,141 @@
+---
+title: "LOGISTIC REGRESSION VERKHOVOD"
+output:
+  word_document: default
+  html_notebook: default
+  html_document: default
+---
+
+# Download the data
+```{r}
+set.seed(123)
+setwd('C:/Users/VerkhovodTS/Desktop/R')
+f <- read.csv2('clients.csv', header = TRUE, encoding = 'UNICOD')
+head (f)
+```
+Висновок: для побудови моделі банківського скорингу використані дані про наявність прострочених платежів по кредиту.
+
+# Statistics
+
+## Descriptive statistics
+```{r}
+library (psych)
+describe(f)
+```
+Висновок: кількість спостережень – 4000, кількість змінних – 20, з них якісних – 14, кількісних – 6. Пропущених значень немає. Викиди мають змінні: LOAN_AMOUNT, CLIENT_TOGETHER.INCOME,  LOAN_OUTSTANDINGLOANSCOUNT
+
+```{r}
+library(ggplot2)
+par(mfrow = c(1,3))
+boxplot(f$LOAN_AMOUNT)
+boxplot(f$CLIENT_TOGETHER.INCOME)
+boxplot(f$LOAN_OUTSTANDINGLOANSCOUNT)
+```
+## Ejections (outside the three sigma)
+```{r}
+f_ej <- f
+f_ej$LOAN_AMOUNT<- ifelse(f$LOAN_AMOUNT < mean(f$LOAN_AMOUNT)+sd(f$LOAN_AMOUNT)*3, f$LOAN_AMOUNT, mean(f$LOAN_AMOUNT)+sd(f$LOAN_AMOUNT)*3)
+f_ej$CLIENT_TOGETHER.INCOME<- ifelse(f$CLIENT_TOGETHER.INCOME < mean(f$CLIENT_TOGETHER.INCOME)+sd(f$CLIENT_TOGETHER.INCOME)*3, f$CLIENT_TOGETHER.INCOME, mean(f$CLIENT_TOGETHER.INCOME)+sd(f$CLIENT_TOGETHER.INCOME)*3)
+f_ej$LOAN_OUTSTANDINGLOANSCOUNT<- ifelse(f$LOAN_OUTSTANDINGLOANSCOUNT < mean(f$LOAN_OUTSTANDINGLOANSCOUNT)+sd(f$LOAN_OUTSTANDINGLOANSCOUNT)*3, f$LOAN_OUTSTANDINGLOANSCOUNT, mean(f$LOAN_OUTSTANDINGLOANSCOUNT)+sd(f$LOAN_OUTSTANDINGLOANSCOUNT)*3)
+describe(f_ej)
+f <- f_ej
+```
+Висновок: для корекції викидів обраний варіант заповнення граничними значеннями.
+## Factors as numeric
+```{r}
+f$LOAN_PRODUCT_TYPE <- as.numeric(as.factor(f$LOAN_PRODUCT_TYPE))-1
+f$BRANCH_REGION <- as.numeric(as.factor(f$BRANCH_REGION))-1
+f$CLIENT_GENDER <- as.numeric(as.factor(f$CLIENT_GENDER))-1
+f$CLIENT_FAMILYSTATUS <- as.numeric(as.factor(f$CLIENT_FAMILYSTATUS))-1
+f$CLIENT_EDUCATION <- as.numeric(as.factor(f$CLIENT_EDUCATION))-1
+f$CLIENT_ACTIVITYTYPE <- as.numeric(as.factor(f$CLIENT_ACTIVITYTYPE))-1
+f$LOAN_OVERDUE_EXIST_FLAG <- as.numeric(as.factor(f$LOAN_OVERDUE_EXIST_FLAG))-1
+f$EMPLOYMENTTYPE <- as.numeric(as.factor(f$EMPLOYMENTTYPE))-1
+f$ZODIAC <- as.numeric(as.factor(f$ZODIAC))-1
+f$ZODIAC_CHINA <- as.numeric(as.factor(f$ZODIAC_CHINA))-1
+f$CHANGE.WORK <- as.numeric(as.factor(f$CHANGE.WORK))-1
+f$REAL_ESTATE <- as.numeric(as.factor(f$REAL_ESTATE))-1
+f$CAR <- as.numeric(as.factor(f$CAR))-1
+f$DELAY <- as.numeric(as.factor(f$DELAY))-1
+```
+Висновок: якісні показники були перведені у кількісні.
+## Features Scaling
+```{r}
+sc <- f[,c('LOAN_AMOUNT','CLIENT_TOTALEXPERIENCE', 'CLIENT_TOGETHER.INCOME', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM', 'AGE')] 
+sc <- scale(sc) 
+f$LOAN_AMOUNT <- sc[,c('LOAN_AMOUNT')] 
+f$CLIENT_TOTALEXPERIENCE <- sc[,c('CLIENT_TOTALEXPERIENCE')] 
+f$CLIENT_TOGETHER.INCOME <- sc[,c('CLIENT_TOGETHER.INCOME')] 
+f$LOAN_OUTSTANDINGLOANSCOUNT <- sc[,c('LOAN_OUTSTANDINGLOANSCOUNT')] 
+f$LOAN.TERM <- sc[,c('LOAN.TERM')] 
+f$AGE <- sc[,c('AGE')] 
+head (f)
+```
+Висновок: було проведене попереднє шкалювання кількісних змінних. 
+# Splitting the scaled dataset into the TRAIN set and TEST set
+```{r}
+set.seed(123)
+library(caTools)
+split = sample.split(f$DELAY, SplitRatio = 0.8)
+f_train = subset(f, split == TRUE)
+f_test = subset(f, split == FALSE)
+```
+Висновок: підготований датасет розділено на навчальну та тестову вибірки. 
+
+# Fitting (Benchmark model)
+```{r}
+class_lr <- glm(DELAY ~ ., f_train, family = binomial)
+summary(class_lr)
+```
+Висновок: значущими змінними є LOAN_PRODUCT_TYPE, LOAN_AMOUNT, BRANCH_REGION, CLIENT_GENDER, CLIENT_FAMILYSTATUS, CLIENT_EDUCATION, LOAN_OUTSTANDINGLOANSCOUNT та LOAN.TERM. 
+## Optimized model
+```{r}
+class_opt <- glm(DELAY ~ LOAN_PRODUCT_TYPE+LOAN.TERM, f_train, family = binomial)
+summary(class_opt)
+```
+Висновок: всі змінні оптимізованої моделі є значущими. 
+# Predicting
+```{r}
+p <- predict(class_opt, f_test[, c('LOAN_PRODUCT_TYPE', 'LOAN.TERM')], type = 'response')
+y <- ifelse(p > 0.5, 1, 0)
+```
+Висновок: розраховані ймовірності віднесення об’єктів до кожного з двох класів (вектор р), визначені класи об’єктів (вектор у).
+## Confusion Matrix
+```{r}
+cm = table(f_test[, 'DELAY'], y > 0.5)
+print(cm)
+```
+Висновок: точність моделі - (183 + 156) / 800 = 63,88 %, частка невірно класифікованих випадків – (133 + 156) / 800 = 36,13 %. Чутливість моделі – 328 / (133 + 328) = 71,15 %, специфічність – 183 / (183 + 156) = 53,98%, тобто модель більш чутлива до виявлення позитивних випадків (клієнтів, що  мають заборгованість).
+## ROC
+```{r}
+library(ROCR)
+pref <- prediction(p, f_test$DELAY)
+perf <- performance(pref, "tpr", "fpr")
+plot(perf)
+```
+Висновок: співвідношення істинно-позитивних і хибно-позитивних випадків свідчить про середню якість моделі.
+# Visualising the Test set results
+```{r}
+library(ggplot2)
+set = f_test[,c('LOAN_PRODUCT_TYPE', 'LOAN.TERM','DELAY')]
+X1 = seq(min(set['LOAN_PRODUCT_TYPE']) - 1, max(set['LOAN_PRODUCT_TYPE']) + 1, by = 0.01)
+X2 = seq(min(set['LOAN.TERM']) - 1, max(set['LOAN.TERM']) + 1, by = 0.01)
+grid_set = expand.grid(X1, X2)
+colnames(grid_set) = c('LOAN_PRODUCT_TYPE', 'LOAN.TERM')
+prob_set = predict(class_opt, grid_set, type = 'response')
+y_grid = ifelse(prob_set > 0.5, 1, 0)
+plot(set[, -3],
+     main = 'Logistic Regression',
+     xlab = 'LOAN_PRODUCT_TYPE', ylab = 'LOAN.TERM',
+     xlim = range(X1), ylim = range(X2))
+contour(X1, X2, matrix(as.numeric(y_grid), length(X1), length(X2)), add = TRUE)
+points(grid_set, pch = '.', col = ifelse(y_grid == 1, 'red', 'darkgreen'))
+points(set, pch = 21, bg = ifelse(set[, 3] == 1, 'red3', 'green4'))
+```
+Висновок: на графіку червоним позначені випадки затримки повернення кредиту, зеленим – хороші кредитори. Червоним виділена зона високої ймовірності неповернення кредиту. Модель описує лінійний варіант розділяючої кривої.
+# Write prepared data to the file
+```{r}
+write.csv2(f_train, file = "clients_train.csv")
+write.csv2(f_test, file = "clients_test.csv")
+```
+Висновок: навчальна та тестова вибірки збережені в окремих файлах.
