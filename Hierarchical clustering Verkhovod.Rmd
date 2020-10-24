@@ -9,8 +9,9 @@ output:
 # Download the data
 ```{r}
 set.seed(123)
-setwd('C:/Users/VerkhovodTS/Desktop/R')
-f <- read.csv2('clients3.csv', header = TRUE, encoding = 'UNICOD')
+setwd('D:/EP-61/R/')
+f <- read.csv2('clients.csv', header = TRUE, encoding = 'UNICOD')
+f <- f[, c('CLIENT_TOGETHER.INCOME', 'LOAN_OUTSTANDINGLOANSCOUNT')]
 head(f)
 ```
 Висновок: для побудови моделі кластеризації використано дані про наявність прострочених платежів по кредиту. Залишимо для моделювання лише кількісні змінні. Датасет не потребує розподілу на навчальну та тестову вибірки, не потребує шкалювання.
@@ -21,8 +22,10 @@ head(f)
 model_hc <- hclust(dist(f), method = "ward.D" )
 plot(model_hc, main = paste('Dendrogram'))
 ```
+
 Висновок: на основі навчальної вибірки побудовано дендрограму з використанням методу Ward.D. 
-## Fitting HC to the dataset
+
+# Fitting HC to the dataset
 ```{r}
 y_hc <- cutree(model_hc, k = 3)
 #cluster cores
@@ -31,14 +34,18 @@ aggregate(f,by=list(y_hc),FUN=mean)
 f$hc <- y_hc
 table(f$hc)
 ```
-Висновок: на основі аналізу дендрограми виявлено три кластера: 1 – “кредит на короткий термін для тих у кого мало відкритих кредитів”, 2 – “кредит на середній період для тих у кого середня кількість відкритих кредитів”, 3 – “кредит на тривалий термін для тих у кого багато відкритих кредитів”. Розраховано характеристики типового об’єкту кластерів. 
-## Plotting the dendrogram
+
+Висновок: на основі аналізу дендрограми виявлено три кластера: 1 – “кредит для тих у кого малий дохід та мало виданих кредитів”, 2 – “кредит для тих у кого середній дохід та середня кількість виданих кредитів”, 3 – “кредит для тих у кого високий рінень доходу та багато виданих кредитів”. Розраховано характеристики типового об’єкту кластерів. 
+
+# Plotting the dendrogram
 ```{r}
 plot(model_hc, cex = 0.7, labels = FALSE)
 rect.hclust(model_hc, k = 3, border = 2:5)
 ```
+
 Висновок: проведено візуалізацію кластерів на дендрограмі.
-## Visualising the clusters
+
+# Visualising the clusters
 ```{r}
 library(cluster)
 clusplot(f[,c('CLIENT_TOGETHER.INCOME','LOAN_OUTSTANDINGLOANSCOUNT')],
@@ -53,4 +60,5 @@ clusplot(f[,c('CLIENT_TOGETHER.INCOME','LOAN_OUTSTANDINGLOANSCOUNT')],
          xlab = 'CLIENT_TOGETHER.INCOME',
          ylab = 'AGE')
 ```
+
 Висновок: проведено візуалізацію кластерів на датасеті.
