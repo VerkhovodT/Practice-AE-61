@@ -1,0 +1,67 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+
+title: "NEUORAL NETWORKS FOR CLASSIFICATION Verkhovod"
+output:
+  word_document: default
+  html_notebook: default
+  html_document: default
+---
+
+# Download libraries
+```{r}
+library(dplyr)
+library(ggplot2)
+library(knitr)
+```
+
+# Download data
+```{r}
+set.seed(123)
+setwd('C:/Users/VerkhovodTS/Desktop/clas')
+f_train <- read.csv2('clients_train.csv', header = TRUE, encoding = 'UNICOD')
+f_test <- read.csv2('clients_test.csv', header = TRUE, encoding = 'UNICOD')
+f_train <- f_train[-1]
+f_test <- f_test[-1]
+```
+Висновок: ми завантажили навчальну та тестову вибірки, видали перші стовбчики з нумерацією.
+
+```{r  results='hide'}
+library(nnet) 
+library(neuralnet)
+# fit neural network
+nn = neuralnet(DELAY ~ BRANCH_REGION+CLIENT_GENDER+CLIENT_FAMILYSTATUS+CLIENT_TOTALEXPERIENCE+CLIENT_EDUCATION+CLIENT_ACTIVITYTYPE+LOAN_OUTSTANDINGLOANSCOUNT+LOAN.TERM, f_train, hidden = 2, linear.output = T)
+# plot neural network
+plot(nn)
+```
+Висновок: на основі усіх змінних побудовано двошарову нейронну мережу.
+
+# Fitting the NN
+```{r results='hide'}
+library(nnet)
+set.seed(11)
+ff_cl <- nnet(data = f_train, DELAY ~ BRANCH_REGION+CLIENT_GENDER+CLIENT_FAMILYSTATUS+CLIENT_TOTALEXPERIENCE+CLIENT_EDUCATION+CLIENT_ACTIVITYTYPE+LOAN_OUTSTANDINGLOANSCOUNT+LOAN.TERM, size = 2, maxit = 1000)
+library(graphics)
+source(file = 'plot.nnet.R')
+plot.nnet(ff_cl)
+```
+Висновок: для навчання моделі використано функцію nnet.На основі усіх значимих змінних ми побудували двошарову нейронну мережу для прогнозування факту прострочення.
+
+# Predicting
+```{r}
+p <- predict(nn, f_test)
+p <- (p > 0.5)
+p <- as.factor(p)
+```
+Висновок: визначені класи об'єктів (вектор p)
+
+# Confusion Matrix
+```{r}
+cm = table(f_test[, 'DELAY'], p)
+print(cm)
+```
+
+Висновок: точність моделі - 71,00%, частка невірно класифікованих випадків – 29%. Чутливість моделі – 78,74%, специфічність – 60,47%, тобто модель більш чутлива до виявлення позитивних випадків (DELAY=1, прострочки немає).

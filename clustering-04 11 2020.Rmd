@@ -1,0 +1,273 @@
+---
+title: 'Verkhovod clustering'
+output:
+  word_document: default
+  html_notebook: default
+  pdf_document: default
+  html_document: default
+---
+
+# Download the data
+```{r}
+library (psych)
+set.seed(123)
+setwd('D:')
+f <- read.csv2('clients.csv', header = TRUE, encoding = 'UNICOD')
+f <- f[,c('LOAN_AMOUNT','CLIENT_TOTALEXPERIENCE', 'CLIENT_TOGETHER.INCOME', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM', 'AGE')]
+head(f)
+describe(f)
+```
+Висновок: для побудови моделі кластеризації використано дані про наявність прострочених платежів по кредиту.кількість спостережень – 4000, кількість змінних – 6. Роботу з масивом будемо проводити без шкалювання та поділу на тестову та навчальну вибірки. Пропущених значень масив не має.
+
+
+# Hierarchical clustering
+```{r}
+model_hc <- hclust(dist(f), method = "ward.D" )
+plot(model_hc, main = paste('Dendrogram'))
+```
+
+Висновок: на основі навчальної вибірки побудовано дендрограму з використанням методу Ward.D.
+
+# Fitting HC to the dataset
+```{r}
+y_hc <- cutree(model_hc, k = 3)
+#cluster cores
+aggregate(f,by=list(y_hc),FUN=mean)
+#Cluster stat
+f$hc <- y_hc
+table(f$hc)
+f= subset(f, select = -c(hc))
+```
+Висновок: на основі аналізу дендрограми виявлено три кластера. Розраховано характеристики типового об’єкту кластерів.
+1 кластер  - 1688 об'єктів: кредит на невелику суму клієнтів з малим доходом, віку більше 43 років на короткий термін.
+2 кластер  - 2078 об'єктів: кредит на середнього розміру для клієнтів з середнім доходом, віку менше 40 років на середній термін.
+3 кластер  - 234 об'єкти: кредит на велику суму клієнтів з великим доходом, віку близько 40 років на довгий термін.
+
+# Plotting the dendrogram
+```{r}
+plot(model_hc, cex = 0.7, labels = FALSE)
+rect.hclust(model_hc, k = 3, border = 2:5)
+```
+Висновок: проведено візуалізацію кластерів на дендрограмі.
+
+# Visualising the clusters
+```{r}
+library(cluster)
+clusplot(f[,c('LOAN_AMOUNT', 'AGE')],
+         y_hc,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels= 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste('Clusters of customers'),
+         xlab = 'LOAN_AMOUNT',
+         ylab = 'AGE')
+```
+Висновок: проведено візуалізацію кластерів на датасеті.
+
+
+
+# Historgram for each attribute (K-Means)
+```{r}
+library(tidyr)
+library(ggplot2)
+f %>% 
+  gather(Attributes, value, 1:6) %>% 
+  ggplot(aes(x=value)) +
+  geom_histogram(fill = "lightblue2", color = "black") + 
+  facet_wrap(~Attributes, scales = "free_x") +
+  labs(x = "Value", y = "Frequency")
+```
+
+## Correlation
+```{r}
+library(corrplot)
+corrplot(cor(f), type = "upper", method = "ellipse", tl.cex = 0.9)
+```
+
+Висновок: кореляція між показниками на середнбому та малому рівні. Кореляція між CLIENT_TOTALEXPERIENCE та AGE дуже висока.
+
+# Elbow method
+```{r}
+library(factoextra)
+fviz_nbclust(f, kmeans, method = "wss") +
+    geom_vline(xintercept = 3, linetype = 2)+
+  labs(subtitle = "Elbow method")
+```
+# Silhouette method
+```{r}
+fviz_nbclust(f, kmeans, method = "silhouette")+
+  labs(subtitle = "Silhouette method")
+```
+Висновок: з використанням метода ліктя зроблено висновок про доцільність виявлення трьох кластерів. Метод силуету - 2.
+
+# Clustree
+```{r}
+library(clustree)
+library(dplyr)
+tmp <- NULL
+for (k in 1:8){
+  tmp[k] <- kmeans(f, k, nstart = 30)
+}
+df <- data.frame(tmp)
+# add a prefix to the column names
+colnames(df) <- seq(1:8
+                    )
+colnames(df) <- paste0("k",colnames(df))
+# get individual PCA
+df.pca <- prcomp(df, center = TRUE, scale. = FALSE)
+ind.coord <- df.pca$x
+ind.coord <- ind.coord[,1:2]
+df <- bind_cols(as.data.frame(df), as.data.frame(ind.coord))
+clustree(df, prefix = "k")
+```
+
+# Fitting K-Means to the dataset
+```{r}
+set.seed(29)
+model_km = kmeans(f, 3)
+#cluster cores
+y_km = model_km$cluster
+aggregate(f,by=list(y_km),FUN=mean)
+```
+Висновок: на основі методу k-середніх описано три кластера:Розраховано характеристики типового об’єкту кластерів.
+
+# Visualising the clusters
+```{r}
+library(cluster)
+clusplot(f[,c('LOAN_AMOUNT','AGE')],
+         y_km,
+         lines = 0,
+         shade = TRUE,
+         color = TRUE,
+         labels= 0,
+         plotchar = FALSE,
+         span = TRUE,
+         main = paste('Clusters of customers'),
+         xlab = 'LOAN_AMOUNT',
+         ylab = 'AGE')
+```
+Висновок: проведено візуалізацію кластерів на датасеті.
+
+# Comparing to HC
+```{r}
+library(clusteval)
+cluster_similarity(y_hc,y_km)
+```
+Висновок: стійкість кластерів 62,5%.
+
+# Kohonen maps
+
+# Features Scaling
+```{r}
+mLOAN_AMOUNT <- mean(f$LOAN_AMOUNT)
+sLOAN_AMOUNT <- sd(f$LOAN_AMOUNT)
+f$LOAN_AMOUNT <- (f$LOAN_AMOUNT -mLOAN_AMOUNT)/sLOAN_AMOUNT
+
+mCLIENT_TOTALEXPERIENCE <- mean(f$CLIENT_TOTALEXPERIENCE)
+sCLIENT_TOTALEXPERIENCE <- sd(f$CLIENT_TOTALEXPERIENCE)
+f$CLIENT_TOTALEXPERIENCE <- (f$CLIENT_TOTALEXPERIENCE -mCLIENT_TOTALEXPERIENCE)/sCLIENT_TOTALEXPERIENCE
+
+mCLIENT_TOGETHER.INCOME <- mean(f$CLIENT_TOGETHER.INCOME)
+sCLIENT_TOGETHER.INCOME <- sd(f$CLIENT_TOGETHER.INCOME)
+f$CLIENT_TOGETHER.INCOME <- (f$CLIENT_TOGETHER.INCOME -mCLIENT_TOGETHER.INCOME)/sCLIENT_TOGETHER.INCOME
+
+mLOAN_OUTSTANDINGLOANSCOUNT <- mean(f$LOAN_OUTSTANDINGLOANSCOUNT)
+sLOAN_OUTSTANDINGLOANSCOUNT <- sd(f$LOAN_OUTSTANDINGLOANSCOUNT)
+f$LOAN_OUTSTANDINGLOANSCOUNT <- (f$LOAN_OUTSTANDINGLOANSCOUNT -mLOAN_OUTSTANDINGLOANSCOUNT)/sLOAN_OUTSTANDINGLOANSCOUNT
+
+mLOAN.TERM <- mean(f$LOAN.TERM)
+sLOAN.TERM <- sd(f$LOAN.TERM)
+f$LOAN.TERM <- (f$LOAN.TERM -mLOAN.TERM)/sLOAN.TERM
+
+mAGE <- mean(f$AGE)
+sAGE <- sd(f$AGE)
+f$AGE <- (f$AGE -mAGE)/sAGE
+
+
+f_matrix <- as.matrix(f)
+```
+
+Висновок: модель Кохонена потребуює шкалювання, виконано шкалювання кількісних змінних.
+
+# Fitting the NN
+```{r}
+set.seed(123)
+library(kohonen)
+som_grid <- somgrid(xdim = 10, ydim = 6, topo = "hexagonal") 
+som_model <- som(f_matrix, grid = som_grid, rlen = 1000,
+                 alpha = c(0.05,0.01), keep.data = TRUE)
+plot(som_model, type = "changes")
+```
+Висновок: графік зміни помилки нейронної мережі Кохонена свідчить про успішне навчання моделі.
+
+# Visualization
+```{r}
+#Palette
+coolBlueHotRed <- function(n, alpha = 1) {
+    rainbow(n, end = 4/6, alpha = alpha)[n:1] 
+}
+par(mfrow = c(1, 2))
+#Number of objects at sells
+plot(som_model, type = "counts", palette.name = coolBlueHotRed)
+#Distance to core
+plot(som_model, type = "quality", palette.name = coolBlueHotRed)
+```
+Висновок: в кожну клітинку мережі потрапило від 50 до 200 спостережень, мережа досить повна.
+
+# Maps of the factors
+```{r}
+plot(som_model, type = "codes")
+```
+
+Висновок: ця візуалізація дозволяє аналізувати всі фактори на одній карті.
+
+```{r}
+par(mfrow = c(2, 3))
+plot(som_model, type = "property", 
+     property = som_model$codes[[1]][,1], 
+     main = "LOAN_AMOUNT",
+     palette.name = coolBlueHotRed)
+plot(som_model, type = "property", 
+     property = som_model$codes[[1]][,2],
+     main = "CLIENT_TOTALEXPERIENCE",
+     palette.name = coolBlueHotRed)
+plot(som_model, type = "property", 
+     property = som_model$codes[[1]][,3], 
+     main = "CLIENT_TOGETHER.INCOME",
+     palette.name = coolBlueHotRed)
+plot(som_model, type = "property", 
+     property = som_model$codes[[1]][,4], 
+     main = "LOAN_OUTSTANDINGLOANSCOUNT",
+     palette.name = coolBlueHotRed)
+plot(som_model, type = "property", 
+     property = som_model$codes[[1]][,5], 
+     main = "LOAN.TERM",
+     palette.name = coolBlueHotRed)
+
+```
+
+Висновок: ця візуалізація дозволяє аналізувати всі фактори на окремих картах та зробити висновок про наявність 3 кластерів.
+
+# Clusters description
+```{r}
+mydata <- as.matrix(som_model$codes[[1]])
+#Use hierarchical clustering, k=3
+som_cluster <- cutree(hclust(dist(mydata)), 3)
+#Palette
+pretty_palette <- c("#1f77b4", '#ff7f0e', '#2ca02c',
+                    '#d62728', '#9467bd', '#8c564b', '#e377c2')
+#Colored clusters
+plot(som_model, type = "codes", 
+     bgcol = pretty_palette[som_cluster])
+add.cluster.boundaries(som_model, som_cluster) 
+```
+
+Висновок: ця візуалізація дозволяє аналізувати парамерти трьох виявлених кластерів на одній карті.
+
+```{r}
+aggregate(mydata,by=list(som_cluster),FUN=mean)
+```
+Висновок: на основі нейроних мереж Кохонена виявлено три кластери. Розраховано характеристики типових об’єктів кластерів.

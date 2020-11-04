@@ -1,0 +1,66 @@
+---
+title: "Compare"
+output:
+  word_document: default
+  html_document: default
+---
+# DoDownload the data
+```{r}
+setwd('C:/Users/VerkhovodTS/Desktop/R')
+f1 <- read.csv2('AGE_test.csv', header = TRUE, encoding = 'UNICOD')
+f2 <- read.csv2('AGE_fit.csv', header = TRUE, encoding = 'UNICOD')
+f2 <- f2[-1]
+f <- dplyr::bind_cols(f1, f2)
+f <- f[,-1]
+head(f)
+```
+# Compare models
+```{r}
+library(gridExtra)
+library(ggplot2)
+g_sr <- ggplot(f, aes(x=Average.life.expectancy, y=p_sr)) + 
+  geom_abline(intercept=0, slope=1) +
+  geom_point(alpha=0.5) + labs(title="Linear Regression", x="Real Average.life.expectancy", y="Predicted Average.life.expectancy") + 
+  theme(plot.title=element_text(size=10), axis.title.x=element_text(size=7), axis.title.y=element_text(size=7), axis.text.x=element_text(size=5), axis.text.y=element_text(size=5)) + theme(legend.position="none")
+
+g_mr <- ggplot(f, aes(x=Average.life.expectancy, y=p_mr)) + 
+  geom_abline(intercept=0, slope=1) +
+  geom_point(alpha=0.5) + labs(title="Multiple Regression", x="Real Average.life.expectancy", y="Predicted Average.life.expectancy") + 
+  theme(plot.title=element_text(size=10), axis.title.x=element_text(size=7), axis.title.y=element_text(size=7), axis.text.x=element_text(size=5), axis.text.y=element_text(size=5)) + theme(legend.position="none")
+
+g_pr <- ggplot(f, aes(x=Average.life.expectancy, y=p_pr)) + 
+  geom_abline(intercept=0, slope=1) +
+  geom_point(alpha=0.5) + labs(title="Polynomial Regression", x="Real Average.life.expectancy", y="Predicted Average.life.expectancy") + 
+  theme(plot.title=element_text(size=10), axis.title.x=element_text(size=7), axis.title.y=element_text(size=7), axis.text.x=element_text(size=5), axis.text.y=element_text(size=5)) + theme(legend.position="none") 
+
+g_dt <- ggplot(f, aes(x=Average.life.expectancy, y=p_dt)) + 
+  geom_abline(intercept=0, slope=1) +
+  geom_point(alpha=0.5) + labs(title="Regression Tree", x="Real Average.life.expectancy", y="Predicted Average.life.expectancy") + 
+  theme(plot.title=element_text(size=10), axis.title.x=element_text(size=7), axis.title.y=element_text(size=7), axis.text.x=element_text(size=5), axis.text.y=element_text(size=5)) + theme(legend.position="none")
+
+g_rf <- ggplot(f, aes(x=Average.life.expectancy, y=p_rf)) + 
+  geom_abline(intercept=0, slope=1) +
+  geom_point(alpha=0.5) + labs(title="Random Forest", x="Real Average.life.expectancy", y="Predicted Average.life.expectancy") + 
+  theme(plot.title=element_text(size=10), axis.title.x=element_text(size=7), axis.title.y=element_text(size=7), axis.text.x=element_text(size=5), axis.text.y=element_text(size=5)) + theme(legend.position="none")
+
+gridExtra::grid.arrange(g_sr,g_mr,g_pr,g_dt,g_rf,ncol=3)
+```
+# Calc prediction error and visualize it
+```{r}
+sr <- mean ((f$Average.life.expectancy - f$p_sr) ^ 2) 
+mr <- mean ((f$Average.life.expectancy - f$p_mr) ^ 2) 
+pr <- mean ((f$Average.life.expectancy - f$p_pr) ^ 2) 
+dt <- mean ((f$Average.life.expectancy - f$p_dt) ^ 2) 
+rf <- mean ((f$Average.life.expectancy - f$p_rf) ^ 2) 
+mse <- data.frame(sr,mr,pr,dt,rf) 
+head(mse) 
+mse1 <- reshape::melt.data.frame(mse) 
+head(mse1) 
+b1 <- ggplot(mse1, aes(x=variable, y=value)) +   geom_bar(stat="summary", fun=mean, fill = 'blue')
+b1 
+```
+# Save results 
+```{r}
+ggsave("plot.jpg", plot=b1 + theme_classic(), width=20, height=15, units="cm", dpi=600)
+
+```

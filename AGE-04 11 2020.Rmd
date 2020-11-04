@@ -1,0 +1,324 @@
+---
+title: "Samostoyatelynaya rabota 1"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r}
+setwd('C:/Users/VerkhovodTS/Desktop/R')
+f <- read.csv2('AGE.csv', header = TRUE, encoding = 'UNICOD')
+f <- f[,-1] 
+library(dplyr)
+head(f)
+```
+Висновок: для виявлення факторів, що впливають на середню тривалість життя ми вибрали такі показники як: ВВП, рівень безробіття, форма правліяння в країні, ВВП на душу населення, частка економічно активного населення, рінень народжуваності. Кількість спостережень 107. Кількість змінних 7.
+
+```{r}
+library(ggplot2)
+par(mfrow = c(1,3))
+hist(f$GDP, col='green', main = 'GDP')
+hist(f$Unemployment,col = 'purple', main = 'Unemployment')
+hist(f$Average.life.expectancy,col = 'yellow', main = 'Average.life.expectancy')
+hist(f$GDP.per.capita,col = 'red', main = 'GDP.per.capita')
+hist(f$Ec.active.population,col = 'Blue', main = 'Ec.active.population')
+hist(f$Birth.rate,col = 'green', main = 'Birth.rate')
+
+```
+
+Висновок:	Розподіл змінних "GDP", "Unemployment", "GDP.per.capita" мають довгий хвіст. 
+
+# Проведемо логарифмування для позбавлення від хвостів
+```{r}
+f_log <- f
+f_log$GDP <- log(f$GDP, )
+f_log$Unemployment <- log(f$Unemployment, )
+f_log$GDP.per.capita <- log(f$GDP.per.capita, )
+
+f<- f_log 
+par(mfrow = c(1,3))
+hist(f$GDP, col='green', main = 'GDP')
+hist(f$Unemployment,col = 'purple', main = 'Unemployment')
+hist(f$Average.life.expectancy,col = 'yellow', main = 'Average.life.expectancy')
+hist(f$GDP.per.capita,col = 'red', main = 'GDP.per.capita')
+hist(f$Ec.active.population,col = 'Blue', main = 'Ec.active.population')
+hist(f$Birth.rate,col = 'green', main = 'Birth.rate')
+
+```
+
+Висновок: ми позбавились від довгих хвостів, тепер всі змінні мають нормальний розподіл.
+
+# Перевіримо дані на наявність викидів
+```{r}
+par(mfrow = c(1,3))
+boxplot(f$GDP)
+boxplot(f$Unemployment)
+boxplot(f$Average.life.expectancy)
+boxplot(f$GDP.per.capita)
+boxplot(f$Ec.active.population)
+boxplot(f$Birth.rate)
+```
+
+Висновок: викиди мають всі знінні, окрім "GDP" та "GDP.per.capita".
+
+# Descriptive statistics
+```{r}
+library(psych)
+describe(f)
+```
+Висновок: Пропущені значення має змінна Constitutional.form Викиди мають усі змінні, окрім "GDP" та "GDP.per.capita".
+
+# Correlations
+```{r}
+pairs.panels(f, lm=TRUE, method = "pearson", hist.col = "#ed5d09")
+```
+
+Висновок: найбільший вплив на Середню тривалість життя має показник ВВП на душу населення. 
+
+# Fill n/a
+```{r}
+f$Constitutional.form <- as.numeric(as.factor(f$Constitutional.form))-1
+library(tidyr)
+f_fill <- f
+f_fill$Constitutional.form <-ifelse(is.na(f$Constitutional.form), round(mean(f$Constitutional.form, na.rm = TRUE)),f$Constitutional.form)
+f<- f_fill
+```
+Висновок:	Пропуски були заповнені середніми значеннями.
+
+
+# Ejections (outside the three sigma)
+```{r}
+f_ej <- f
+f_ej$GDP<- ifelse(f$GDP < mean(f$GDP)-sd(f$GDP)*3, mean(f$GDP)-sd(f$GDP)*3, f$GDP)
+f_ej$Unemployment<- ifelse(f$Unemployment < mean(f$Unemployment)-sd(f$Unemployment)*3, mean(f$Unemployment)-sd(f$Unemployment)*3, f$Unemployment)
+f_ej$Average.life.expectancy<- ifelse(f$Average.life.expectancy < mean(f$Average.life.expectancy)-sd(f$Average.life.expectancy)*3, mean(f$Average.life.expectancy)+sd(f$Average.life.expectancy)*3, f$Average.life.expectancy)
+f_ej$Ec.active.population<- ifelse(f$Ec.active.population < mean(f$Ec.active.population)-sd(f$Ec.active.population)*3, mean(f$Ec.active.population)-sd(f$Ec.active.population)*3, f$Ec.active.population)
+
+f_ej$Ec.active.population<- ifelse(f$Ec.active.population < mean(f$Ec.active.population)+sd(f$Ec.active.population)*3, f$Ec.active.population, mean(f$Ec.active.population)+sd(f$Ec.active.population)*3)
+f_ej$Birth.rate<- ifelse(f$Birth.rate < mean(f$Birth.rate)+sd(f$Birth.rate)*3, f$Birth.rate, mean(f$Birth.rate)+sd(f$Birth.rate)*3)
+describe(f_ej)
+f <- f_ej
+```
+Висновок: Для корекції викидів в усіх випадках обраний варіант заповнення граничними значеннями.
+
+```{r}
+set.seed(123)
+library(caTools)
+split = sample.split(f$Average.life.expectancy, SplitRatio = 0.8)
+f_train = subset(f, split == TRUE)
+f_test = subset(f, split == FALSE)
+write.csv2(f_train, file = "AGE_train.csv")
+write.csv2(f_test, file = "AGE_test.csv")
+```
+Висновок:	Датасет розподілений на навчальну та тестову вибірки. Результати збережені в окремих файлах.
+
+# Regression
+
+# Simple Linear Regression (one factor – GDP.per.capita) 
+# Fitting Simple Linear Regression to the Training set
+```{r}
+model_sr <- lm(Average.life.expectancy~GDP.per.capita, f_train)
+summary(model_sr)
+```
+Висновок: Обрана змінна значуща, коефіцієнт детермінації =0,75
+
+# Predicting 
+```{r}
+p_sr <- predict(model_sr, f_test)
+r2_sr <- 1-sum((f_train$Average.life.expectancy - predict(model_sr, f_train))^2)/sum((f_train$Average.life.expectancy - mean(f_train$Average.life.expectancy))^2) 
+R2_sr <- cor(f_train$Average.life.expectancy, fitted(model_sr))^2
+
+train_mse_sr <- sum((f_train$Average.life.expectancy-predict(model_sr, f_train))^2)/length(f_train$Average.life.expectancy) 
+test_mse_sr <- sum((f_test$Average.life.expectancy-p_sr)^2)/length(p_sr) 
+train_mse_sr 
+test_mse_sr
+```
+Висновок: Значення середньоквадратичної похибки на навчальній вибірці – 10.12092, 
+на тестовій вибірці – 7.557154, тобтонемає перенавчання.
+
+# Visualising 
+```{r}
+library(ggplot2) 
+ggplot()+
+  geom_point(aes(f_train$GDP.per.capita, f_train$Average.life.expectancy), color='red')+
+  geom_point(aes(f_test$GDP.per.capita, f_test$Average.life.expectancy), color='dark blue')+
+  geom_line(aes(f_test$GDP.per.capita, p_sr), color='black')+
+  ggtitle('Average.life.expectancy vs GDP.per.capita')+
+  xlab('GDP.per.capita')+
+  ylab('Average.life.expectancy')
+```
+
+Висновок: на графіку червоним позначені точки навчальної вибірки, синім – точки тестової вибірки, чорна лінія – модельні значення. 
+
+# Multiple Linear Regression (many factors) 
+
+# All factors
+```{r}
+model_mr <- lm(data = f_train, Average.life.expectancy ~ .)
+summary(model_mr)
+```
+Висновок: Значущими є Birth.rate та GDP.per.capita, коефіцієнт детермінації дорівнює 0,84. 
+
+# Optimized model 
+
+# Оптимізуємо модель за допомогою виключення з неї змінних GDP, Unemployment, та Constitutional.form та Ec.active.population
+```{r}
+model_opt <- lm(data=f_train, Average.life.expectancy~Birth.rate+GDP.per.capita)
+summary(model_opt)
+```
+Висновок: усі змінні значущі, коефіцієнт детермінації = 0,83. 
+
+# Prediction
+```{r}
+p_mr <- predict(model_opt,f_test)
+train_mse_opt <- sum((f_train$Average.life.expectancy-predict(model_opt,f_train))^2)/length(f_train$Average.life.expectancy)
+tast_mse_opt <- sum((f_test$Average.life.expectancy-p_mr)^2)/length(p_mr)
+train_mse_opt
+tast_mse_opt
+```
+Висновок: значення середньоквадратичної помилки на навчальній вибірці – 6.792481, на тестовій вибірці – 6.948426, є перенавчання. 
+
+# Visualising
+```{r}
+ggplot()+
+  geom_point(aes(f_train$GDP.per.capita, f_train$Average.life.expectancy), color='red')+
+  geom_point(aes(f_test$GDP.per.capita, f_test$Average.life.expectancy), color='dark blue')+
+  geom_line(aes(f_test$GDP.per.capita, p_mr), color='black')+
+  ggtitle('Average.life.expectancy vs GDP.per.capita')+
+  xlab('GDP.per.capita')+
+  ylab('Average.life.expectancy')
+```
+
+Висновок: на графіку червоним позначені точки навчальної вибірки, синім – точки тестової вибірки, чорна лінія – модельні значення.
+
+# Polynomial Linear Regression (one factor - GDP.per.capita) 
+
+# Features extending
+```{r}
+f_train_poly <-f_train[,c('Average.life.expectancy','GDP.per.capita')]
+f_test_poly <-f_test[,c('Average.life.expectancy','GDP.per.capita')]
+f_train_poly$GDP.per.capita2 <-f_train_poly$GDP.per.capita^2
+f_train_poly$GDP.per.capita3 <-f_train_poly$GDP.per.capita^3
+f_test_poly$GDP.per.capita2 <-f_test_poly$GDP.per.capita^2
+f_test_poly$GDP.per.capita3 <-f_test_poly$GDP.per.capita^3
+```
+Висновок: Ми додали значення GDP.per.capita^2 та GDP.per.capita^3
+
+# 3 powers
+```{r}
+model_pr <-lm(data = f_train_poly, Average.life.expectancy~GDP.per.capita2+GDP.per.capita3)
+summary(model_pr)
+```
+Висновок: змінні GDP.per.capita^2 та GDP.per.capita^3 значущі, коефіцієнт детермінації = 0.77.
+
+# Predicting 
+```{r}
+p_pr<- predict(model_pr, f_test_poly)
+
+train_mse_poly <-sum((f_train_poly$Average.life.expectancy-predict(model_pr,f_train_poly))^2)/
+  length(f_train_poly$Average.life.expectancy)
+test_mse_poly <-sum((f_test_poly$Average.life.expectancy-p_pr)^2)/length(p_pr)
+train_mse_poly
+test_mse_poly
+```
+Висновок: значення середньоквадратичної помилки на навчальній вибірці – 9.330371, на тестовій вибірці – 7.944063, тобто немає перенавчання.
+
+# Visualising 
+```{r}
+ggplot()+
+  geom_point(aes(f_train_poly$GDP.per.capita3, f_train_poly$Average.life.expectancy), color='red')+
+  geom_point(aes(f_test_poly$GDP.per.capita3, f_test_poly$Average.life.expectancy), color='dark blue')+
+  geom_line(aes(f_test_poly$GDP.per.capita3, p_pr), color='black')+
+  ggtitle('Average.life.expectancy vs GDP.per.capita3')+
+  xlab('GDP.per.capita3')+
+  ylab('Average.life.expectancy')
+``` 
+
+Висновок: на графіку червоним позначені точки навчальної вибірки, синім – точки тестової вибірки, чорна лінія – модельні значення.
+
+#Saving results
+```{r}
+fit <-data.frame(p_sr,p_mr,p_pr)
+write.csv2(fit, file = "AGE_fit.csv")
+```
+Висновок: результати моделювання збережені у файлі. 
+Порівнюючі коефіцієнти детермінації та середньоквадратичнку помилку можемо побачити, що краща модель - поліноміальна. Але всї побудовані нами моделі перенавчені.
+
+
+# Decision Tree Regression
+```{r}
+library(rpart)
+model_dt <- rpart(Average.life.expectancy ~ GDP.per.capita, f_train, control = rpart.control(minsplit = 30))
+plot(model_dt)
+text(model_dt)
+```
+
+Висновок: побудовано дерево рішень, екзогенна змінна – GDP.per.capita
+
+# Predicting
+```{r}
+p_dt <- predict(model_dt, f_test)
+train_mse_dt <- sum((f_train$Average.life.expectancy-predict(model_dt, f_train))^2) /length(f_train$Average.life.expectancy)
+test_mse_dt <- sum((f_test$Average.life.expectancy-p_dt)^2)/length(p_dt)
+train_mse_dt
+test_mse_dt
+```
+Висновок: значення середньоквадратичної помилки на навчальній вибірці – 9.712351, на тестовій вибірці – 7.20737, перенавчання немає.
+
+# Visualising
+```{r}
+library(ggplot2)
+x_grid <- seq(min(f_train$GDP.per.capita), max(f_train$GDP.per.capita), 0.01)
+ggplot() +
+  geom_point(aes(f_train$GDP.per.capita, f_train$Average.life.expectancy),colour = 'red') +
+  geom_point(aes(f_test$GDP.per.capita, f_test$Average.life.expectancy),colour = 'green') +
+  geom_line(aes(x_grid, predict(model_dt, data.frame(GDP.per.capita = x_grid))),colour = 'black') +
+  ggtitle('Average.life.expectancy vs GDP.per.capita') +
+  xlab('GDP.per.capita') +
+  ylab('Average.life.expectancy')
+```
+
+Висновок: на графіку червоним позначені точки навчальної вибірки, зеленим – точки тестової вибірки, чорна лінія – модельні значення. 
+
+# Random forest
+```{r}
+library(randomForest)
+set.seed(1234)
+model_rf = randomForest(x = f_train['GDP.per.capita'],
+                  y = f_train$Average.life.expectancy,
+                  ntree = 2)
+```
+# Predicting
+```{r}
+p_rf <- predict(model_rf, f_test)
+
+train_mse_rf <- sum((f_train$Average.life.expectancy-predict(model_rf, f_train))^2)/length(f_train$Average.life.expectancy)
+test_mse_rf <- sum((f_test$Average.life.expectancy-p_rf)^2)/length(p_rf)
+
+train_mse_rf
+test_mse_rf
+```
+Висновок: значення середньоквадратичної помилки на навчальній вибірці  – 5.251832, на тестовій вибірці – 9.949549 покращилися, є перенавчання.
+
+# Visualising
+```{r}
+ggplot() +
+  geom_point(aes(f_train$GDP.per.capita, f_train$Average.life.expectancy),colour = 'red') +
+  geom_point(aes(f_test$GDP.per.capita, f_test$Average.life.expectancy),colour = 'blue') +
+  geom_line(aes(x_grid, predict(model_rf, data.frame(GDP.per.capita = x_grid))),colour = 'black') +
+  ggtitle('Average.life.expectancy vs GDP.per.capita') +
+  xlab('GDP.per.capita') +
+  ylab('Average.life.expectancy')
+```
+
+Висновок: на графіку червоним позначені точки навчальної вибірки, синім – точки тестової вибірки, чорна лінія – модельні значення. 
+
+# Saving results
+```{r}
+fit <- read.csv2('AGE_fit.csv', header = TRUE, encoding = 'UNICOD')
+fit$p_dt <- p_dt
+fit$p_rf <- p_rf
+head(fit)
+write.csv2(fit[-1], file = "AGE_fit.csv")
+```
+Висновок:результати моделювання збережені у файлі.

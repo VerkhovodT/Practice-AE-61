@@ -1,0 +1,233 @@
+---
+title: "LOGISTIC REGRESSION VERKHOVOD"
+output:
+  word_document: default
+  html_notebook: default
+  html_document: default
+---
+
+# Download the data
+```{r}
+set.seed(123)
+setwd('C:/Users/VerkhovodTS/Desktop/clas')
+f <- read.csv2('clients.csv', header = TRUE, encoding = 'UNICOD')
+```
+Висновок: використані дані про наявність прострочених платежів по кредиту. 
+
+# Statistics
+
+## Descriptive statistics
+```{r}
+library (psych)
+describe(f)
+```
+Висновок: кількість спостережень – 4000, кількість змінних – 19, з них якісних – 13, кількісних – 6. Пропущених значень немає. Викиди мають змінні: LOAN_AMOUNT, CLIENT_TOGETHER.INCOME,  LOAN_OUTSTANDINGLOANSCOUNT
+
+```{r}
+library(ggplot2)
+par(mfrow = c(1,6))
+boxplot(f$LOAN_AMOUNT)
+boxplot(f$CLIENT_TOTALEXPERIENCE)
+boxplot(f$CLIENT_TOGETHER.INCOME)
+boxplot(f$LOAN_OUTSTANDINGLOANSCOUNT)
+boxplot(f$LOAN.TERM)
+boxplot(f$AGE)
+```
+
+Висновок: Викиди мають змінні: LOAN_AMOUNT, CLIENT_TOGETHER.INCOME,  LOAN_OUTSTANDINGLOANSCOUNT
+
+## Ejections (outside the three sigma)
+```{r}
+f_ej <- f
+f_ej$LOAN_AMOUNT<- ifelse(f$LOAN_AMOUNT < mean(f$LOAN_AMOUNT)+sd(f$LOAN_AMOUNT)*3, f$LOAN_AMOUNT, mean(f$LOAN_AMOUNT)+sd(f$LOAN_AMOUNT)*3)
+f_ej$CLIENT_TOGETHER.INCOME<- ifelse(f$CLIENT_TOGETHER.INCOME < mean(f$CLIENT_TOGETHER.INCOME)+sd(f$CLIENT_TOGETHER.INCOME)*3, f$CLIENT_TOGETHER.INCOME, mean(f$CLIENT_TOGETHER.INCOME)+sd(f$CLIENT_TOGETHER.INCOME)*3)
+f_ej$LOAN_OUTSTANDINGLOANSCOUNT<- ifelse(f$LOAN_OUTSTANDINGLOANSCOUNT < mean(f$LOAN_OUTSTANDINGLOANSCOUNT)+sd(f$LOAN_OUTSTANDINGLOANSCOUNT)*3, f$LOAN_OUTSTANDINGLOANSCOUNT, mean(f$LOAN_OUTSTANDINGLOANSCOUNT)+sd(f$LOAN_OUTSTANDINGLOANSCOUNT)*3)
+describe(f_ej)
+f <- f_ej
+```
+Висновок: для корекції викидів обраний варіант заповнення граничними значеннями.
+
+## Factors as numeric
+```{r}
+f$BRANCH_REGION <- as.numeric(as.factor(f$BRANCH_REGION))-1
+f$CLIENT_GENDER <- as.numeric(as.factor(f$CLIENT_GENDER))-1
+f$CLIENT_FAMILYSTATUS <- as.numeric(as.factor(f$CLIENT_FAMILYSTATUS))-1
+f$CLIENT_EDUCATION <- as.numeric(as.factor(f$CLIENT_EDUCATION))-1
+f$CLIENT_ACTIVITYTYPE <- as.numeric(as.factor(f$CLIENT_ACTIVITYTYPE))-1
+f$LOAN_OVERDUE_EXIST_FLAG <- as.numeric(as.factor(f$LOAN_OVERDUE_EXIST_FLAG))-1
+f$EMPLOYMENTTYPE <- as.numeric(as.factor(f$EMPLOYMENTTYPE))-1
+f$ZODIAC <- as.numeric(as.factor(f$ZODIAC))-1
+f$ZODIAC_CHINA <- as.numeric(as.factor(f$ZODIAC_CHINA))-1
+f$CHANGE.WORK <- as.numeric(as.factor(f$CHANGE.WORK))-1
+f$REAL_ESTATE <- as.numeric(as.factor(f$REAL_ESTATE))-1
+f$CAR <- as.numeric(as.factor(f$CAR))-1
+f$DELAY <- as.numeric(as.factor(f$DELAY))-1
+```
+Висновок: якісні показники були перведені у кількісні. (DELAY=1-немає заборгованості,DELAY=0 - є забаргованість)
+
+## Features Scaling
+```{r}
+sc <- f[,c('LOAN_AMOUNT','CLIENT_TOTALEXPERIENCE', 'CLIENT_TOGETHER.INCOME', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM', 'AGE')] 
+sc <- scale(sc) 
+f$LOAN_AMOUNT <- sc[,c('LOAN_AMOUNT')] 
+f$CLIENT_TOTALEXPERIENCE <- sc[,c('CLIENT_TOTALEXPERIENCE')] 
+f$CLIENT_TOGETHER.INCOME <- sc[,c('CLIENT_TOGETHER.INCOME')] 
+f$LOAN_OUTSTANDINGLOANSCOUNT <- sc[,c('LOAN_OUTSTANDINGLOANSCOUNT')] 
+f$LOAN.TERM <- sc[,c('LOAN.TERM')] 
+f$AGE <- sc[,c('AGE')] 
+head (f)
+```
+Висновок: було проведене попереднє шкалювання кількісних змінних. 
+
+# Splitting the scaled dataset into the TRAIN set and TEST set
+```{r}
+set.seed(123)
+library(caTools)
+split = sample.split(f$DELAY, SplitRatio = 0.8)
+f_train = subset(f, split == TRUE)
+f_test = subset(f, split == FALSE)
+```
+Висновок: підготований датасет розділено на навчальну та тестову вибірки. 
+
+# Fitting (Benchmark model)
+```{r}
+class_lr <- glm(DELAY ~ ., f_train, family = binomial)
+summary(class_lr)
+```
+Висновок: значущими змінними є BRANCH_REGION, CLIENT_GENDER, CLIENT_FAMILYSTATUS, CLIENT_TOTALEXPERIENCE, CLIENT_EDUCATION,CLIENT_ACTIVITYTYPE, LOAN_OUTSTANDINGLOANSCOUNT та LOAN.TERM. 
+
+## Optimized model
+```{r}
+class_opt <- glm(DELAY ~ BRANCH_REGION+CLIENT_GENDER+CLIENT_FAMILYSTATUS+CLIENT_TOTALEXPERIENCE+CLIENT_EDUCATION+CLIENT_ACTIVITYTYPE+LOAN_OUTSTANDINGLOANSCOUNT+LOAN.TERM, f_train, family = binomial)
+summary(class_opt)
+```
+Висновок: всі змінні оптимізованої моделі є значущими. 
+
+# Predicting
+```{r}
+p <- predict(class_opt, f_test[, c('BRANCH_REGION', 'CLIENT_GENDER', 'CLIENT_FAMILYSTATUS', 'CLIENT_TOTALEXPERIENCE', 'CLIENT_EDUCATION', 'CLIENT_ACTIVITYTYPE', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM')], type = 'response')
+y <- ifelse(p > 0.5, 1, 0)
+```
+Висновок: розраховані ймовірності віднесення об’єктів до кожного з двох класів (вектор р), визначені класи об’єктів (вектор у).
+
+## Confusion Matrix
+```{r}
+cm = table(f_test[, 'DELAY'], y > 0.5)
+print(cm)
+```
+Висновок: точність моделі - 71,63 %, частка невірно класифікованих випадків – 28.38 %. Чутливість моделі –  80.26 %, специфічність – 59.88%, тобто модель більш чутлива до виявлення позитивних випадків (клієнтів, що не мають прострочки).
+
+## ROC
+```{r}
+library(ROCR)
+pref <- prediction(p, f_test$DELAY)
+perf <- performance(pref, "tpr", "fpr")
+plot(perf)
+```
+Висновок:  ROC-крива показує співвідношення істинно-позитивних і хибно-позитивних випадків. Вона свідчить про середню якість моделі.
+
+# Write prepared data to the file
+```{r}
+write.csv2(f_train, file = "clients_train.csv")
+write.csv2(f_test, file = "clients_test.csv")
+```
+Висновок: навчальна та тестова вибірки збережені в окремих файлах.
+
+
+# K-Nearest Neighbors (K-NN)
+
+# Fitting & predicting
+```{r}
+library(class)
+y = knn(train = f_train[,c( 'BRANCH_REGION', 'CLIENT_GENDER', 'CLIENT_FAMILYSTATUS', 'CLIENT_TOTALEXPERIENCE', 'CLIENT_EDUCATION', 'CLIENT_ACTIVITYTYPE', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM')],
+        test = f_test[,c( 'BRANCH_REGION', 'CLIENT_GENDER', 'CLIENT_FAMILYSTATUS', 'CLIENT_TOTALEXPERIENCE', 'CLIENT_EDUCATION', 'CLIENT_ACTIVITYTYPE', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM')],
+        cl = f_train[, 'DELAY'],
+        k = 30,
+        prob = TRUE)
+```
+Висновок: і навчання, і прогнозування за моделлю k найближчих сусідів здійснюється однією функцією. У результаті отримуємо вектор класів об’єктів. 
+
+## Confusion Matrix
+```{r}
+cm1 = table(f_test[, 'DELAY'], y == '1')
+print(cm1)
+```
+
+Висновок: точність моделі – 72,5 %, частка невірно класифікованих випадків – 27,5 %. Чутливість – 82,43 %, специфічність – 59,00 %, тобто модель більш чутлива до виявлення позитивних випадків (кредиторів, що не мають прострочки). 
+
+# Fitting SVM model
+```{r}
+# install.packages('e1071')
+library(e1071)
+class_svm_l = svm(DELAY ~BRANCH_REGION+CLIENT_GENDER+CLIENT_FAMILYSTATUS+CLIENT_TOTALEXPERIENCE+CLIENT_EDUCATION+CLIENT_ACTIVITYTYPE+LOAN_OUTSTANDINGLOANSCOUNT+LOAN.TERM, data = f_train, kernel = 'linear')
+summary(class_svm_l)
+```
+Висновок: для навчання базової моделі, заснованої на методі опорних векторів, вибрано лінійне ядро. 
+
+# Predicting
+```{r}
+p <- predict(class_svm_l, f_test[, c( 'BRANCH_REGION', 'CLIENT_GENDER', 'CLIENT_FAMILYSTATUS', 'CLIENT_TOTALEXPERIENCE', 'CLIENT_EDUCATION', 'CLIENT_ACTIVITYTYPE', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM')])
+y <- ifelse(p > 0.5, 1, 0)
+```
+Висновок: визначено класи об’єктів (вектор у). 
+
+## Confusion Matrix
+```{r}
+cm = table(f_test[, 'DELAY'], y)
+print(cm)
+```
+
+Висновок: точність моделі – 71.25 %, частка невірно класифікованих випадків – 28.75 %. Чутливість 78.96 %, специфічність – 60.77 %, тобто модель більш чутлива до виявлення позитивних випадків (кредиторів, що не мають прострочки). 
+
+
+# Fitting RBF-kernel model
+```{r}
+# install.packages('e1071')
+library(e1071)
+class_svm_r = svm(DELAY ~ BRANCH_REGION+CLIENT_GENDER+CLIENT_FAMILYSTATUS+CLIENT_TOTALEXPERIENCE+CLIENT_EDUCATION+CLIENT_ACTIVITYTYPE+LOAN_OUTSTANDINGLOANSCOUNT+LOAN.TERM, data = f_train, kernel = 'radial')
+summary(class_svm_r)
+```
+Висновок: для навчання моделі, заснованої на методі опорних векторів, вибрано нелінійне ядро. 
+
+# Predicting
+```{r}
+p <- predict(class_svm_r, f_test[, c('BRANCH_REGION', 'CLIENT_GENDER', 'CLIENT_FAMILYSTATUS', 'CLIENT_TOTALEXPERIENCE', 'CLIENT_EDUCATION', 'CLIENT_ACTIVITYTYPE', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM')])
+y <- ifelse(p > 0.5, 1, 0)
+```
+Висновок: визначені класи об’єктів (вектор у). 
+
+## Confusion Matrix
+```{r}
+cm2 = table(f_test[, 'DELAY'], y)
+print(cm2)
+```
+Висновок: точність моделі 72.13 %, частка невірно класифікованих випадків – 27.88 %. Чутливість – 81.13 %, специфічність – 59.88 %, тобто модель більш чутлива до виявлення позитивних випадків (кредиторів, що не мають прострочки). 
+
+# Naive Bayes
+
+# Fitting 
+```{r}
+# install.packages('e1071')
+library(e1071)
+f_train$DELAY <- as.factor(f_train$DELAY)
+f_test$DELAY <- as.factor(f_test$DELAY)
+class_nb = naiveBayes(DELAY ~ BRANCH_REGION + CLIENT_GENDER + CLIENT_FAMILYSTATUS + 
+    CLIENT_TOTALEXPERIENCE + CLIENT_EDUCATION + CLIENT_ACTIVITYTYPE + LOAN_OUTSTANDINGLOANSCOUNT + 
+    LOAN.TERM, data = f_train)
+```
+Висновок: для навчання моделі використано функцію naiveBayes
+
+# Predicting
+```{r}
+y <- predict(class_nb, f_test[, c('BRANCH_REGION', 'CLIENT_GENDER', 'CLIENT_FAMILYSTATUS', 'CLIENT_TOTALEXPERIENCE', 'CLIENT_EDUCATION', 'CLIENT_ACTIVITYTYPE', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM')])
+```
+Висновок: визначено класи об’єктів (вектор у). 
+
+## Confusion Matrix
+```{r}
+cm3 = table(f_test[, 'DELAY'], y)
+print(cm3)
+```
+Висновок: точність моделі – 70.00 %, частка невірно класифікованих випадків – 30.00 %. Чутливість – 79.61 %, специфічність – 56.93 %, тобто модель більш чутлива до виявлення позитивних випадків (кредиторів, що не мають прострочки).
+
+

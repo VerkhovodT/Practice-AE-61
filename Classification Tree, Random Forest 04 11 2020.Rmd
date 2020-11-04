@@ -1,0 +1,135 @@
+---
+title: "Classification Tree, Random Forest"
+output:
+  word_document: default
+  html_notebook: default
+  html_document: default
+---
+
+# Download the data
+```{r}
+set.seed(123)
+setwd('C:/Users/VerkhovodTS/Desktop/clas')
+f <- read.csv2('clients.csv', header = TRUE, encoding = 'UNICOD')
+```
+Висновок: використані дані про наявність прострочених платежів по кредиту. 
+
+# Statistics
+
+## Descriptive statistics
+```{r}
+library (psych)
+describe(f)
+```
+Висновок: кількість спостережень – 4000, кількість змінних – 19, з них якісних – 13, кількісних – 6. Пропущених значень немає. Викиди мають змінні: LOAN_AMOUNT, CLIENT_TOGETHER.INCOME,  LOAN_OUTSTANDINGLOANSCOUNT
+
+```{r}
+library(ggplot2)
+par(mfrow = c(1,6))
+boxplot(f$LOAN_AMOUNT)
+boxplot(f$CLIENT_TOTALEXPERIENCE)
+boxplot(f$CLIENT_TOGETHER.INCOME)
+boxplot(f$LOAN_OUTSTANDINGLOANSCOUNT)
+boxplot(f$LOAN.TERM)
+boxplot(f$AGE)
+```
+
+Висновок: Викиди мають змінні: LOAN_AMOUNT, CLIENT_TOGETHER.INCOME,  LOAN_OUTSTANDINGLOANSCOUNT
+
+## Ejections (outside the three sigma)
+```{r}
+f_ej <- f
+f_ej$LOAN_AMOUNT<- ifelse(f$LOAN_AMOUNT < mean(f$LOAN_AMOUNT)+sd(f$LOAN_AMOUNT)*3, f$LOAN_AMOUNT, mean(f$LOAN_AMOUNT)+sd(f$LOAN_AMOUNT)*3)
+f_ej$CLIENT_TOGETHER.INCOME<- ifelse(f$CLIENT_TOGETHER.INCOME < mean(f$CLIENT_TOGETHER.INCOME)+sd(f$CLIENT_TOGETHER.INCOME)*3, f$CLIENT_TOGETHER.INCOME, mean(f$CLIENT_TOGETHER.INCOME)+sd(f$CLIENT_TOGETHER.INCOME)*3)
+f_ej$LOAN_OUTSTANDINGLOANSCOUNT<- ifelse(f$LOAN_OUTSTANDINGLOANSCOUNT < mean(f$LOAN_OUTSTANDINGLOANSCOUNT)+sd(f$LOAN_OUTSTANDINGLOANSCOUNT)*3, f$LOAN_OUTSTANDINGLOANSCOUNT, mean(f$LOAN_OUTSTANDINGLOANSCOUNT)+sd(f$LOAN_OUTSTANDINGLOANSCOUNT)*3)
+describe(f_ej)
+f <- f_ej
+```
+Висновок: для корекції викидів обраний варіант заповнення граничними значеннями.
+
+## Factors as numeric
+```{r}
+f$BRANCH_REGION <- as.numeric(as.factor(f$BRANCH_REGION))-1
+f$CLIENT_GENDER <- as.numeric(as.factor(f$CLIENT_GENDER))-1
+f$CLIENT_FAMILYSTATUS <- as.numeric(as.factor(f$CLIENT_FAMILYSTATUS))-1
+f$CLIENT_EDUCATION <- as.numeric(as.factor(f$CLIENT_EDUCATION))-1
+f$CLIENT_ACTIVITYTYPE <- as.numeric(as.factor(f$CLIENT_ACTIVITYTYPE))-1
+f$LOAN_OVERDUE_EXIST_FLAG <- as.numeric(as.factor(f$LOAN_OVERDUE_EXIST_FLAG))-1
+f$EMPLOYMENTTYPE <- as.numeric(as.factor(f$EMPLOYMENTTYPE))-1
+f$ZODIAC <- as.numeric(as.factor(f$ZODIAC))-1
+f$ZODIAC_CHINA <- as.numeric(as.factor(f$ZODIAC_CHINA))-1
+f$CHANGE.WORK <- as.numeric(as.factor(f$CHANGE.WORK))-1
+f$REAL_ESTATE <- as.numeric(as.factor(f$REAL_ESTATE))-1
+f$CAR <- as.numeric(as.factor(f$CAR))-1
+f$DELAY <- as.numeric(as.factor(f$DELAY))-1
+```
+Висновок: якісні показники були перведені у кількісні. (DELAY=1-немає заборгованості,DELAY=0 - є забаргованість)
+
+
+# Splitting the scaled dataset into the TRAIN set and TEST set
+```{r}
+set.seed(123)
+library(caTools)
+split = sample.split(f$DELAY, SplitRatio = 0.8)
+f_train = subset(f, split == TRUE)
+f_test = subset(f, split == FALSE)
+```
+Висновок: підготований датасет розділено на навчальну та тестову вибірки. 
+
+
+# Fitting 
+```{r}
+# install.packages('rpart')
+library(rpart)
+f_train$DELAY <- as.factor(f_train$DELAY)
+f_test$DELAY <- as.factor(f_test$DELAY)
+class_dt = rpart(DELAY ~ ., data = f_train)
+```
+Висновок: для навчання моделі використано функцію rpart.
+
+# Predicting
+```{r}
+y <- predict(class_dt, f_test[-20], type = 'class')
+```
+Висновок: визначені класи об’єктів (вектор у). 
+
+# Confusion Matrix
+```{r}
+cm4 = table(f_test[, 'DELAY'], y)
+print(cm4)
+```
+
+Висновок: точність моделі - 68.13%, частка невірно класифікованих випадків – 31.88%. Чутливість моделі – 73.97%, специфічність – 60.18%, тобто модель більш чутлива до виявлення позитивних випадків (DELAY=1, прострочки немає).
+
+# Plotting the tree
+```{r}
+plot(class_dt)
+text(class_dt)
+```
+
+Висновок: візуалізація дозволяє проаналізувати логіку побудови дерева.
+
+# Fitting Random Forest Classification to the Training set
+```{r}
+# install.packages ('randomForest')
+library(randomForest)
+set.seed(123)
+class_rf = randomForest(DELAY ~ BRANCH_REGION + CLIENT_GENDER + CLIENT_FAMILYSTATUS + 
+    CLIENT_TOTALEXPERIENCE + CLIENT_EDUCATION + CLIENT_ACTIVITYTYPE + LOAN_OUTSTANDINGLOANSCOUNT
+    + LOAN.TERM, data = f_train, ntree = 50)
+```
+Висновок: для навчання моделі використано функцію randomForest.
+
+# Predicting
+```{r}
+y <- predict(class_rf, f_test[, c('BRANCH_REGION', 'CLIENT_GENDER', 'CLIENT_FAMILYSTATUS', 'CLIENT_TOTALEXPERIENCE', 'CLIENT_EDUCATION', 'CLIENT_ACTIVITYTYPE', 'LOAN_OUTSTANDINGLOANSCOUNT', 'LOAN.TERM')])
+```
+Висновок: визначені класи об’єктів (вектор у). 
+
+# Confusion Matrix
+```{r}
+cm8 = table(f_test[, 'DELAY'], y)
+print(cm8)
+```
+
+Висновок: точність моделі - 72.38%, частка невірно класифікованих випадків – 27.63%. Чутливість моделі – 79.83%, специфічність – 62.24%, тобто модель більш чутлива до виявлення позитивних випадків (DELAY=1, прострочки немає).
